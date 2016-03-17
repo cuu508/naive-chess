@@ -44,10 +44,15 @@ class Pawn(Piece):
         if dst not in board:
             yield board.move(src, dst)
 
-            # Move by two
-            dst = (x, y + yd + yd)
-            if dst not in board:
-                yield board.move(src, dst)
+            # If on starting row, allow a move by two
+            if self.color == WHITE and y == 1:
+                dst = (x, 3)
+                if dst not in board:
+                    yield board.move(src, dst)
+            elif self.color == BLACK and y == 6:
+                dst = (x, 4)
+                if dst not in board:
+                    yield board.move(src, dst)
 
         # Attack left
         dst = (x - 1, y + yd)
@@ -268,10 +273,10 @@ class ComputerPlayer(object):
             if best_score is None:
                 best_board, best_score = new_board, score
 
-            if self.side == BLACK and score < best_score:
+            elif self.side == BLACK and score < best_score:
                 best_board, best_score = new_board, score
 
-            if self.side == WHITE and score > best_score:
+            elif self.side == WHITE and score > best_score:
                 best_board, best_score = new_board, score
 
         return best_board
