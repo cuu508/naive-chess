@@ -284,6 +284,22 @@ class ComputerPlayer(object):
 
         opponent = ComputerPlayer(1 - self.side)
         for new_board in board.mut():
+            score = new_board.score()
+            if self.side == WHITE:
+                if score < -100:
+                    # Our king is killed, this move is a no-go
+                    continue
+                elif score > 100:
+                    # Opponent's king is killed, pick this move
+                    return new_board
+            else:
+                if score > 100:
+                    # Our king is killed, this move is a no-go
+                    continue
+                elif score < -100:
+                    # Opponent's king is killed, pick this move
+                    return new_board
+
             needle = new_board
             if depth > 0:
                 needle = opponent.make_move(needle, depth - 1)
