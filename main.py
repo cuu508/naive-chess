@@ -23,6 +23,19 @@ def tuple_to_symbolic(s):
     return "abcdefgh"[s[0]] + str(s[1] + 1)
 
 
+class Color:
+    PURPLE = '\033[95m'
+    CYAN = '\033[96m'
+    DARKCYAN = '\033[36m'
+    BLUE = '\033[94m'
+    GREEN = '\033[92m'
+    YELLOW = '\033[93m'
+    RED = '\033[91m'
+    BOLD = '\033[1m'
+    UNDERLINE = '\033[4m'
+    END = '\033[0m'
+
+
 class Piece(object):
     def __init__(self, color):
         self.color = color
@@ -54,12 +67,12 @@ class Pawn(Piece):
                 if dst not in board:
                     yield board.move(src, dst)
 
-        # Attack left
+        # Capture left
         dst = (x - 1, y + yd)
         if x > 0 and dst in board and board[dst].color != self.color:
             yield board.move(src, dst)
 
-        # Attack right
+        # Capture right
         dst = (x + 1, y + yd)
         if x < 7 and dst in board and board[dst].color != self.color:
             yield board.move(src, dst)
@@ -85,7 +98,7 @@ class Galloper(Piece):
                 else:
                     # We hit a piece
                     if board[dst].color != self.color:
-                        # But we can attack it...
+                        # But we can capture it...
                         yield board.move(src, dst)
 
                     break
@@ -141,6 +154,8 @@ class Board(dict):
     def initial(self):
         """ Set up starting position. """
         board = Board()
+        board.last_src = (-1, -1)
+        board.last_dst = (-1, -1)
         board.tomove = WHITE
 
         for x in range(0, 8):
@@ -183,7 +198,10 @@ class Board(dict):
             s += "|"
             for x in range(0, 8):
                 if (x, y) in self:
-                    s += self[(x, y)].symbol()
+                    symbol = self[(x, y)].symbol()
+                    if self.last_dst == (x, y):
+                        symbol = Color.RED + symbol + Color.END
+                    s += symbol
                 else:
                     s += " " if (x + y) % 2 else "░"
                 s += "|"
@@ -223,7 +241,7 @@ class Board(dict):
 class HumanPlayer(object):
     def make_move(self, game):
         board = game[-1]
-        if hasattr(board, "last_src"):
+        if board.last_src != (-1, -1):
             g1 = tuple_to_symbolic(board.last_src)
             g2 = tuple_to_symbolic(board.last_dst)
             print("Opponent moves: %s %s" % (g1, g2))
@@ -231,7 +249,7 @@ class HumanPlayer(object):
 
         move_seems_valid = False
         while not move_seems_valid:
-            user_says = input("Your move: ")
+            user_says = input("Your move ('b' to undo): ")
             if user_says == "b":
                 print("Reverting your last move")
                 game.pop()  # opponent's last move
@@ -250,7 +268,9 @@ class HumanPlayer(object):
                 print("Invalid input! Example: 'e4 e5'")
                 move_seems_valid = False
 
-        return board.move(src, dst)
+        new_board = board.move(src, dst)
+        print(new_board)
+        return new_board
 
 
 class ComputerPlayer(object):
@@ -258,7 +278,7 @@ class ComputerPlayer(object):
     def __init__(self, side):
         self.side = side
 
-    def make_move(self, board, depth=2):
+    def make_move(self, board, depth=3):
         best_board, best_score = None, None
         best_board = None
 
