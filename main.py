@@ -207,6 +207,13 @@ class Board(dict):
 
             yield from piece.mut(src, self)
 
+    def is_legal(self, src, dst):
+        for new_board in self.mut():
+            if new_board.last_src == src and new_board.last_dst == dst:
+                return True
+
+        return False
+
 
 class HumanPlayer(object):
     def make_move(self, game):
@@ -217,9 +224,8 @@ class HumanPlayer(object):
             print("Opponent moves: %s %s" % (g1, g2))
         print(board)
 
-        success = False
-        while not success:
-
+        move_seems_valid = False
+        while not move_seems_valid:
             user_says = input("Your move: ")
             if user_says == "b":
                 print("Reverting your last move")
@@ -229,12 +235,15 @@ class HumanPlayer(object):
                 print(board)
                 continue
 
-            success = True
+            move_seems_valid = True
             try:
                 src, dst = parse_symbolic_move(user_says)
+                if not board.is_legal(src, dst):
+                    print("Illegal move!")
+                    move_seems_valid = False
             except:
                 print("Invalid input! Example: 'e4 e5'")
-                success = False
+                move_seems_valid = False
 
         return board.move(src, dst)
 
