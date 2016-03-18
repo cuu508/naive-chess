@@ -212,7 +212,18 @@ class Board(dict):
         return s
 
     def score(self):
-        return sum(piece.value for piece in self.values())
+        """ Calculate score for current board and current player.
+
+        score = 0: both players have equal chances
+        score > 0: player to move has an advantage
+        score > 100: player to move has already won (enemy king is dead)
+        score < 0: opponent has an advantage
+        score < -100: player to move has lost
+
+        """
+
+        value_sum = sum(piece.value for piece in self.values())
+        return value_sum * self.tomove
 
     def mut(self):
         """ Return all legal boards that can be derived from this one. """
@@ -232,10 +243,10 @@ class Board(dict):
         return False
 
     def is_lost(self):
-        return self.score() * self.tomove < -100
+        return self.score() < -100
 
     def is_won(self):
-        return self.score() * self.tomove > 100
+        return self.score() > 100
 
 
 class HumanPlayer(object):
@@ -289,10 +300,10 @@ class ComputerPlayer(object):
             if depth > 0:
                 needle = self.make_move(needle, depth - 1)
 
-            normalized_score = board.tomove * needle.score()
+            score = needle.score()
 
-            if best_score is None or normalized_score > best_score:
-                best_board, best_score = new_board, normalized_score
+            if best_score is None or score > best_score:
+                best_board, best_score = new_board, score
 
         return best_board
 
