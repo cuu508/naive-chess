@@ -1,9 +1,7 @@
 # coding: utf8
 
-import time
-
-WHITE = 0
-BLACK = 1
+WHITE = 1
+BLACK = -1
 
 
 def on_board(pos):
@@ -35,22 +33,25 @@ class Color:
     UNDERLINE = '\033[4m'
     END = '\033[0m'
 
+    @classmethod
+    def red(cls, s):
+        return cls.RED + s + cls.END
+
 
 class Piece(object):
     def __init__(self, color):
         self.color = color
-
-    def symbol(self):
-        return self.symbols[self.color]
+        self.symbol = self.symbols[0] if color == WHITE else self.symbols[1]
+        self.value = self.base_value * color
 
 
 class Pawn(Piece):
     symbols = "♙♟"
-    value = 1
+    base_value = 1
 
     def mut(self, src, board):
         x, y = src
-        yd = 1 if self.color == WHITE else -1
+        yd = self.color
 
         # Move by one
         dst = (x, y + yd)
@@ -106,13 +107,13 @@ class Galloper(Piece):
 
 class Rook(Galloper):
     symbols = "♖♜"
-    value = 5
+    base_value = 5
     directions = (0, 1), (0, -1), (1, 0), (-1, 0)
 
 
 class Knight(Piece):
     symbols = "♘♞"
-    value = 3
+    base_value = 3
 
     def mut(self, src, board):
         for xd, yd in ((-1, -2), (-1, 2), (1, -2), (1, 2),
@@ -130,19 +131,19 @@ class Knight(Piece):
 
 class Bishop(Galloper):
     symbols = "♗♝"
-    value = 3
+    base_value = 3
     directions = (-1, -1), (-1, 1), (1, -1), (1, 1)
 
 
 class Queen(Galloper):
     symbols = "♕♛"
-    value = 9
+    base_value = 9
     directions = Rook.directions + Bishop.directions
 
 
 class King(Galloper):
     symbols = "♔♚"
-    value = 1000
+    base_value = 1000
     directions = Rook.directions + Bishop.directions
     step_limit = 1
 
@@ -185,9 +186,8 @@ class Board(dict):
         board[dst] = self[src]
         del board[src]
 
-        board.last_src = src
-        board.last_dst = dst
-        board.tomove = 1 - self.tomove
+        board.last_src, board.last_dst = src, dst
+        board.tomove = -self.tomove  # toggles WHITE/BLACK
 
         return board
 
@@ -198,9 +198,9 @@ class Board(dict):
             s += "|"
             for x in range(0, 8):
                 if (x, y) in self:
-                    symbol = self[(x, y)].symbol()
+                    symbol = self[(x, y)].symbol
                     if self.last_dst == (x, y):
-                        symbol = Color.RED + symbol + Color.END
+                        symbol = Color.red(symbol)
                     s += symbol
                 else:
                     s += " " if (x + y) % 2 else "░"
@@ -212,13 +212,7 @@ class Board(dict):
         return s
 
     def score(self):
-        total = 0
-
-        for piece in self.values():
-            value = piece.value if piece.color == WHITE else -piece.value
-            total += value
-
-        return total
+        return sum(piece.value for piece in self.values())
 
     def mut(self):
         """ Return all legal boards that can be derived from this one. """
@@ -230,12 +224,18 @@ class Board(dict):
 
             yield from piece.mut(src, self)
 
-    def is_legal(self, src, dst):
+    def move_is_legal(self, src, dst):
         for new_board in self.mut():
             if new_board.last_src == src and new_board.last_dst == dst:
                 return True
 
         return False
+
+    def is_lost(self):
+        return self.score() * self.tomove < -100
+
+    def is_won(self):
+        return self.score() * self.tomove > 100
 
 
 class HumanPlayer(object):
@@ -261,7 +261,7 @@ class HumanPlayer(object):
             move_seems_valid = True
             try:
                 src, dst = parse_symbolic_move(user_says)
-                if not board.is_legal(src, dst):
+                if not board.move_is_legal(src, dst):
                     print("Illegal move!")
                     move_seems_valid = False
             except:
@@ -274,52 +274,31 @@ class HumanPlayer(object):
 
 
 class ComputerPlayer(object):
-
-    def __init__(self, side):
-        self.side = side
-
     def make_move(self, board, depth=3):
         best_board, best_score = None, None
-        best_board = None
 
-        opponent = ComputerPlayer(1 - self.side)
         for new_board in board.mut():
-            score = new_board.score()
-            if self.side == WHITE:
-                if score < -100:
-                    # Our king is killed, this move is a no-go
-                    continue
-                elif score > 100:
-                    # Opponent's king is killed, pick this move
-                    return new_board
-            else:
-                if score > 100:
-                    # Our king is killed, this move is a no-go
-                    continue
-                elif score < -100:
-                    # Opponent's king is killed, pick this move
-                    return new_board
+            if new_board.is_lost():
+                # Opponent's king is killed, pick this move
+                return new_board
+            elif new_board.is_won():
+                # Our king is killed, this move is a no-go
+                continue
 
             needle = new_board
             if depth > 0:
-                needle = opponent.make_move(needle, depth - 1)
+                needle = self.make_move(needle, depth - 1)
 
-            score = needle.score()
+            normalized_score = board.tomove * needle.score()
 
-            if best_score is None:
-                best_board, best_score = new_board, score
-
-            elif self.side == BLACK and score < best_score:
-                best_board, best_score = new_board, score
-
-            elif self.side == WHITE and score > best_score:
-                best_board, best_score = new_board, score
+            if best_score is None or normalized_score > best_score:
+                best_board, best_score = new_board, normalized_score
 
         return best_board
 
-p1 = HumanPlayer()
-p2 = ComputerPlayer(BLACK)
+human = HumanPlayer()
+computer = ComputerPlayer()
 game = [Board.initial()]
 while True:
-    game.append(p1.make_move(game))
-    game.append(p2.make_move(game[-1]))
+    game.append(human.make_move(game))
+    game.append(computer.make_move(game[-1]))
